@@ -28,6 +28,14 @@
 
 구글 시트 탭: `사용법` · `설정` · `계정목록` · `분류기준` · `거래내역` · `예산안` · `비교표` · `인사관리`
 
+## 웹앱 주소 (Apps Script 배포)
+
+- 웹앱: https://script.google.com/macros/s/AKfycbxrUAA1nsqjhgO6S0Fx3NKuIWDNQ4iAXkRr0gXiTtnTmH4BQaMuET2ODd6iXgEmwoL1/exec
+- 이 주소가 열리려면 Apps Script 프로젝트에 `apps-script/WebApp.gs`(doGet 함수)와
+  `apps-script/Index.html`이 들어 있어야 하고, **[배포 → 배포 관리 → 새 버전]** 으로
+  다시 배포해야 합니다. 주소를 열었을 때 "Script function not found: doGet" 오류가
+  보이면 그 배포에 WebApp.gs가 아직 없는 것입니다.
+
 ## 시작하는 법
 
 ### 방법 A — 만들어진 구글 시트 사용 (권장)
