@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CCPC 예산 앱 — 웹 버전</title>
+<style>
+  :root{
+    --navy:#1f4e79; --navy-dark:#163a5c; --bg:#f4f6f9; --card:#fff;
+    --line:#d9e0e8; --text:#1c2733; --muted:#64748b; --accent:#2563eb;
+    --good:#0e7a3d; --warn:#b45309;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;background:var(--bg);color:var(--text)}
+  header{background:var(--navy);color:#fff;padding:18px 22px}
+  header h1{margin:0;font-size:21px}
+  header p{margin:5px 0 0;font-size:13px;opacity:.85}
+  main{max-width:1180px;margin:0 auto;padding:18px 14px 60px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+  .card h2{margin:0 0 10px;font-size:16px;color:var(--navy-dark)}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  label{font-size:13px;color:var(--muted)}
+  input[type=number],input[type=text],select{padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:14px}
+  input[type=number]{width:90px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:8px 14px;font-size:14px;cursor:pointer}
+  button.sub{background:#e2e8f0;color:var(--text)}
+  button:hover{filter:brightness(1.07)}
+  textarea{width:100%;min-height:90px;border:1px solid var(--line);border-radius:6px;padding:9px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.55}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .stat .k{font-size:12px;color:var(--muted)}
+  .stat .v{font-size:21px;font-weight:700;margin-top:4px;color:var(--navy-dark)}
+  .stat .v small{font-size:12px;font-weight:400;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:var(--navy);color:#fff;padding:8px 7px;text-align:left;position:sticky;top:0;z-index:1}
+  td{border-bottom:1px solid var(--line);padding:6px 7px;vertical-align:middle}
+  tr.subtotal td{background:#eef3f8;font-weight:700}
+  .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  td input[type=number]{width:76px;padding:4px 6px;font-size:13px}
+  td select{padding:4px 5px;font-size:13px}
+  .kind-고정{color:var(--good);font-weight:600}
+  .kind-일회성{color:var(--warn);font-weight:600}
+  .kind-제외{color:#b91c1c;font-weight:600}
+  .tablewrap{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .empty{padding:34px;text-align:center;color:var(--muted);font-size:14px}
+  @media print{
+    header,.noprint{display:none!important}
+    main{padding:0}
+    .tablewrap{max-height:none;overflow:visible;border:0}
+    th{position:static}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>CCPC 예산 앱 — 웹 버전</h1>
+  <p>시카고 언약 장로교회 · 재정부 지침 방식 (고정 = 월 평균 × 12 · 변동 = 실적 ÷ 개월 수 × 12 · 일회성 = 실제 예정액 · Refunds &amp; Credits 제외)</p>
+</header>
+<main>
+
+  <section class="card noprint">
+    <h2>1. 설정</h2>
+    <div class="row">
+      <label>기준연도 <input type="number" id="baseYear" value="2026"></label>
+      <label>예산연도 <input type="number" id="budgetYear" value="2027"></label>
+      <label>실적 개월 수 <input type="number" id="months" value="9" min="1" max="12"></label>
+      <button class="sub" id="applySettings">설정 적용</button>
+    </div>
+    <p class="hint">실적 개월 수를 바꾸면 모든 환산액이 다시 계산됩니다. (예: 1~9월 실적이면 9)</p>
+  </section>
+
+  <section class="card noprint">
+    <h2>2. 지출 내역 불러오기</h2>
+    <div class="row">
+      <input type="file" id="fileInput" accept=".csv,text/csv,text/plain">
+      <button class="sub" id="sampleBtn">예시 데이터로 체험하기</button>
+      <button class="sub" id="clearBtn">비우기</button>
+    </div>
+    <p class="hint">CSV 열 순서: 계정번호, 계정명, 카테고리, 날짜, 거래유형, Num, 거래처, 내역, 금액 (구글 시트 "거래내역" 탭과 같은 형식).
+    아래 칸에 CSV를 직접 붙여넣어도 됩니다. <b>모든 계산은 이 브라우저 안에서만 이루어지고, 데이터는 어디로도 전송되지 않습니다.</b></p>
+    <textarea id="pasteBox" placeholder="여기에 CSV 붙여넣기 후 [붙여넣은 CSV 불러오기]를 누르세요"></textarea>
+    <div class="row" style="margin-top:8px"><button id="pasteBtn">붙여넣은 CSV 불러오기</button></div>
+  </section>
+
+  <section class="stats" id="stats" style="margin-bottom:14px"></section>
+
+  <section class="card">
+    <h2>3. <span id="budgetTitle">예산안</span></h2>
+    <div class="row noprint" style="margin-bottom:10px">
+      <label>검색 <input type="text" id="filterBox" placeholder="계정·항목 이름으로 찾기"></label>
+      <button id="csvBtn">예산안 CSV 내려받기</button>
+      <button class="sub" onclick="window.print()">인쇄</button>
+    </div>
+    <div class="tablewrap" id="tableWrap"><div class="empty">아직 불러온 내역이 없습니다. 위에서 CSV를 불러오거나 예시 데이터로 시작해 보세요.</div></div>
+    <p class="hint">지출 성격은 자동 분류된 초안입니다. 항목별로 바꾸면 계산이 바로 바뀝니다.
+    조정률은 4분기 계절 요인(난방비·연말 행사 등) 반영용이고, 일회성 항목은 "일회성 예정액"에 실제 예정 금액을 넣어 주세요.
+    입력 내용은 이 브라우저에 자동 저장됩니다.</p>
+  </section>
+
+</main>
+
+<script>
+"use strict";
+/* ---------- 상태 ---------- */
+var LS_KEY = "ccpc-budget-web-v1";
+var state = { baseYear: 2026, budgetYear: 2027, months: 9, rows: [] };
+// row: {acct, name, cat, kind, actual, rate, once}
+
+function save(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+}
+function load(){
+  try{
+    var s = localStorage.getItem(LS_KEY);
+    if(s){ state = JSON.parse(s); }
+  }catch(e){}
+}
+
+/* ---------- 분류 규칙 (Apps Script와 동일) ---------- */
+function classifyDefault(cat){
+  var s = String(cat || "").toLowerCase();
+  if(s.indexOf("refund") >= 0 || s.indexOf("credit") >= 0) return "제외";
+  var fixed = ["payroll","salary","stipend","fica","medicare","subscription","software","internet","telephone","phone","loan interest"];
+  for(var i=0;i<fixed.length;i++) if(s.indexOf(fixed[i]) >= 0) return "고정";
+  var once = ["insurance","membership","scholarship"];
+  for(var j=0;j<once.length;j++) if(s.indexOf(once[j]) >= 0) return "일회성";
+  return "변동";
+}
+
+/* ---------- CSV 파서 ---------- */
+function parseCSV(text){
+  var rows = [], row = [], cur = "", inQ = false;
+  text = String(text).replace(/^\uFEFF/, "");
+  for(var i=0;i<text.length;i++){
+    var ch = text[i];
+    if(inQ){
+      if(ch === '"'){
+        if(text[i+1] === '"'){ cur += '"'; i++; } else inQ = false;
+      } else cur += ch;
+    } else if(ch === '"'){ inQ = true; }
+    else if(ch === ","){ row.push(cur); cur = ""; }
+    else if(ch === "\n"){ row.push(cur); rows.push(row); row = []; cur = ""; }
+    else if(ch !== "\r"){ cur += ch; }
+  }
+  if(cur !== "" || row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(function(r){ return r.length > 1 || (r[0] && r[0].trim() !== ""); });
+}
+function parseAmount(v){
+  if(v == null) return 0;
+  var s = String(v).replace(/[$,\s]/g, "");
+  var neg = /^\(.*\)$/.test(s);
+  s = s.replace(/[()]/g, "");
+  var n = parseFloat(s);
+  if(isNaN(n)) return 0;
+  return neg ? -n : n;
+}
+
+/* ---------- 데이터 적재: 거래내역 -> (계정,항목) 집계 ---------- */
+function ingest(csvText){
+  var data = parseCSV(csvText);
+  if(!data.length){ alert("읽을 수 있는 데이터가 없습니다."); return; }
+  var start = 0;
+  var head = data[0].join(",").toLowerCase();
+  if(head.indexOf("금액") >= 0 || head.indexOf("amount") >= 0 || head.indexOf("계정") >= 0) start = 1;
+  var agg = {}, order = [];
+  for(var i=start;i<data.length;i++){
+    var r = data[i];
+    if(r.length < 9) continue;
+    var acct = (r[0]||"").trim(), name = (r[1]||"").trim(), cat = (r[2]||"").trim();
+    var amt = parseAmount(r[8]);
+    if(!cat) continue;
+    var key = acct + "|" + cat;
+    if(!agg[key]){ agg[key] = {acct:acct, name:name, cat:cat, actual:0}; order.push(key); }
+    agg[key].actual += amt;
+  }
+  // 기존 입력값(성격/조정률/일회성)은 같은 키로 보존
+  var prev = {};
+  state.rows.forEach(function(r){ prev[r.acct + "|" + r.cat] = r; });
+  state.rows = order.map(function(key){
+    var a = agg[key], p = prev[key] || {};
+    var kind = p.kind || classifyDefault(a.cat);
+    return { acct:a.acct, name:a.name, cat:a.cat, kind:kind,
+             actual: Math.round(a.actual*100)/100,
+             rate: (p.rate != null ? p.rate : 0),
+             once: (p.once != null && p.once !== "") ? p.once : (kind === "일회성" ? Math.round(a.actual*100)/100 : "") };
+  });
+  save(); render();
+  alert(state.rows.length + "개 항목으로 예산안 초안을 만들었습니다.");
+}
+
+/* ---------- 계산 ---------- */
+function calc(r){
+  var monthly = state.months ? r.actual / state.months : 0;
+  var conv = (r.kind === "고정" || r.kind === "변동") ? monthly * 12 : 0;
+  var adj = conv * (1 + (Number(r.rate) || 0));
+  var fin = r.kind === "일회성" ? (Number(r.once) || 0) : (r.kind === "제외" ? 0 : adj);
+  return { monthly: monthly, conv: conv, adj: adj, fin: fin };
+}
+function basisText(kind){
+  if(kind === "고정") return "월 평균 × 12";
+  if(kind === "변동") return "실적 ÷ " + state.months + " × 12";
+  if(kind === "일회성") return "연 1회성 — 실제 예정액";
+  return "예산 제외 (Refunds & Credits)";
+}
+function money(n){
+  return n.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+/* ---------- 화면 ---------- */
+function render(){
+  document.getElementById("baseYear").value = state.baseYear;
+  document.getElementById("budgetYear").value = state.budgetYear;
+  document.getElementById("months").value = state.months;
+  document.getElementById("budgetTitle").textContent = state.budgetYear + "년 예산안";
+
+  var totActual = 0, totFinal = 0, byKind = {"고정":0,"변동":0,"일회성":0,"제외":0};
+  state.rows.forEach(function(r){ var c = calc(r); totActual += r.actual; totFinal += c.fin; byKind[r.kind] += c.fin; });
+  document.getElementById("stats").innerHTML =
+    stat("기준 실적 합계", "$" + money(totActual), state.baseYear + "년 · " + state.months + "개월") +
+    stat(state.budgetYear + "년 예산안 합계", "$" + money(totFinal), state.rows.length + "개 항목") +
+    stat("고정 지출", "$" + money(byKind["고정"]), "") +
+    stat("변동 지출", "$" + money(byKind["변동"]), "") +
+    stat("일회성 지출", "$" + money(byKind["일회성"]), "");
+
+  var q = (document.getElementById("filterBox").value || "").toLowerCase();
+  var wrap = document.getElementById("tableWrap");
+  if(!state.rows.length){
+    wrap.innerHTML = '<div class="empty">아직 불러온 내역이 없습니다. 위에서 CSV를 불러오거나 예시 데이터로 시작해 보세요.</div>';
+    return;
+  }
+  var html = "<table><thead><tr>" +
+    "<th>계정</th><th>계정명</th><th>세부항목</th><th>지출 성격</th>" +
+    "<th class='num'>실적 합계</th><th class='num'>월 평균</th><th class='num'>12개월 환산</th>" +
+    "<th class='num'>조정률</th><th class='num'>일회성 예정액</th><th class='num'>최종 예산안</th><th>산출 근거</th>" +
+    "</tr></thead><tbody>";
+  var lastAcct = null, subActual = 0, subFinal = 0;
+  function subtotalRow(){
+    if(lastAcct === null) return "";
+    return "<tr class='subtotal'><td colspan='4'>소계</td><td class='num'>" + money(subActual) +
+           "</td><td colspan='4'></td><td class='num'>" + money(subFinal) + "</td><td></td></tr>";
+  }
+  state.rows.forEach(function(r, idx){
+    if(q && (r.acct + " " + r.name + " " + r.cat).toLowerCase().indexOf(q) < 0) return;
+    var c = calc(r);
+    if(lastAcct !== null && r.acct !== lastAcct){ html += subtotalRow(); subActual = 0; subFinal = 0; }
+    lastAcct = r.acct; subActual += r.actual; subFinal += c.fin;
+    html += "<tr>" +
+      "<td>" + esc(r.acct) + "</td><td>" + esc(r.name) + "</td><td>" + esc(r.cat) + "</td>" +
+      "<td><select data-i='" + idx + "' data-f='kind'>" +
+        ["고정","변동","일회성","제외"].map(function(k){
+          return "<option value='" + k + "'" + (r.kind === k ? " selected" : "") + ">" + k + "</option>";
+        }).join("") + "</select></td>" +
+      "<td class='num'>" + money(r.actual) + "</td>" +
+      "<td class='num'>" + money(c.monthly) + "</td>" +
+      "<td class='num'>" + money(c.adj) + "</td>" +
+      "<td class='num'><input type='number' step='0.01' value='" + r.rate + "' data-i='" + idx + "' data-f='rate'></td>" +
+      "<td class='num'><input type='number' step='0.01' value='" + (r.once === "" ? "" : r.once) + "' data-i='" + idx + "' data-f='once' " + (r.kind === "일회성" ? "" : "disabled") + "></td>" +
+      "<td class='num'><b>" + money(c.fin) + "</b></td>" +
+      "<td class='kind-" + r.kind + "'>" + basisText(r.kind) + "</td></tr>";
+  });
+  html += subtotalRow() + "</tbody></table>";
+  wrap.innerHTML = html;
+  wrap.querySelectorAll("select[data-f], input[data-f]").forEach(function(el){
+    el.addEventListener("change", function(){
+      var i = Number(el.getAttribute("data-i")), f = el.getAttribute("data-f");
+      state.rows[i][f] = (f === "kind") ? el.value : (el.value === "" ? "" : Number(el.value));
+      save(); render();
+    });
+  });
+}
+function stat(k, v, sub){
+  return "<div class='stat'><div class='k'>" + k + "</div><div class='v'>" + v +
+         (sub ? " <small>" + sub + "</small>" : "") + "</div></div>";
+}
+function esc(s){
+  return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+/* ---------- 내보내기 ---------- */
+function exportCSV(){
+  var lines = [["계정번호","계정명","세부항목","지출성격","실적 합계","월 평균","12개월 환산(조정 후)","일회성 예정액","최종 예산안","산출 근거"].join(",")];
+  state.rows.forEach(function(r){
+    var c = calc(r);
+    lines.push([r.acct, r.name, r.cat, r.kind, r.actual.toFixed(2), c.monthly.toFixed(2),
+                c.adj.toFixed(2), (r.once === "" ? "" : Number(r.once).toFixed(2)), c.fin.toFixed(2), basisText(r.kind)]
+      .map(function(v){ return '"' + String(v).replace(/"/g,'""') + '"'; }).join(","));
+  });
+  var blob = new Blob(["\uFEFF" + lines.join("\r\n")], {type:"text/csv;charset=utf-8"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = state.budgetYear + "년_예산안.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ---------- 예시 데이터 ---------- */
+var SAMPLE = [
+  "계정번호,계정명,카테고리,날짜,거래유형,Num,거래처,내역,금액",
+  "1100,Office,Software & Online Subscriptions,2026-01-23,Expense,,Adobe,월 구독료,55.20",
+  "1100,Office,Software & Online Subscriptions,2026-02-23,Expense,,Adobe,월 구독료,55.20",
+  "1100,Office,Software & Online Subscriptions,2026-03-23,Expense,,Adobe,월 구독료,55.20",
+  "1100,Office,Office Supplies & Water,2026-03-05,Expense,,Costco,사무용품,212.40",
+  "1100,Office,Office Supplies & Water,2026-06-11,Expense,,Costco,사무용품,188.10",
+  "1150,Presbytery Membership Fee,Presbytery Membership Fee,2026-02-01,Expense,,한미노회,연회비,13230",
+  "3600,Member Relation,Sunday Lunch,2026-04-12,Expense,,식자재마트,주일 점심 재료,4374.63",
+  "3600,Member Relation,Sunday Lunch,2026-07-19,Expense,,식자재마트,주일 점심 재료,4102.55",
+  "3600,Member Relation,Refunds & Credits,2026-05-02,Credit,,식자재마트,환불,-150",
+  "6100,Maintenance,Insurance,2026-01-15,Expense,,보험사,연간 보험료,22130.25",
+  "6100,Maintenance,Utilities,2026-02-08,Expense,,ComEd,전기요금,812.30",
+  "6100,Maintenance,Utilities,2026-08-08,Expense,,ComEd,전기요금,905.44"
+].join("\n");
+
+/* ---------- 이벤트 ---------- */
+document.getElementById("fileInput").addEventListener("change", function(e){
+  var f = e.target.files[0]; if(!f) return;
+  var reader = new FileReader();
+  reader.onload = function(){ ingest(reader.result); };
+  reader.readAsText(f);
+});
+document.getElementById("pasteBtn").addEventListener("click", function(){
+  var t = document.getElementById("pasteBox").value;
+  if(t.trim()) ingest(t);
+});
+document.getElementById("sampleBtn").addEventListener("click", function(){ ingest(SAMPLE); });
+document.getElementById("clearBtn").addEventListener("click", function(){
+  if(confirm("불러온 내역과 입력값을 모두 비울까요?")){
+    state.rows = []; save(); render();
+  }
+});
+document.getElementById("applySettings").addEventListener("click", function(){
+  state.baseYear = Number(document.getElementById("baseYear").value) || state.baseYear;
+  state.budgetYear = Number(document.getElementById("budgetYear").value) || state.budgetYear;
+  state.months = Math.min(12, Math.max(1, Number(document.getElementById("months").value) || 9));
+  save(); render();
+});
+document.getElementById("filterBox").addEventListener("input", render);
+document.getElementById("csvBtn").addEventListener("click", exportCSV);
+
+load();
+render();
+</script>
+</body>
+</html>

@@ -24,6 +24,7 @@
 | `apps-script/Setup.gs` | 빈 시트에 전체 탭 구조를 만드는 초기 설정 함수 |
 | `apps-script/appsscript.json` | Apps Script 프로젝트 설정 (시간대 America/Chicago) |
 | `template/CCPC_예산앱_템플릿.xlsx` | 코드 없이 바로 열어 쓸 수 있는 엑셀/구글시트 템플릿 (수식 포함) |
+| `index.html` | 웹앱 버전 — 브라우저에서 파일을 열거나 GitHub Pages로 게시하면 바로 실행. CSV를 불러오면 같은 규칙으로 예산안 작성 (데이터는 브라우저 안에서만 처리) |
 
 구글 시트 탭: `사용법` · `설정` · `계정목록` · `분류기준` · `거래내역` · `예산안` · `비교표` · `인사관리`
 
