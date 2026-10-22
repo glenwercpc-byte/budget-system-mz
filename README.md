@@ -31,10 +31,15 @@
 ## 웹앱 주소 (Apps Script 배포)
 
 - 웹앱: https://script.google.com/macros/s/AKfycbxrUAA1nsqjhgO6S0Fx3NKuIWDNQ4iAXkRr0gXiTtnTmH4BQaMuET2ODd6iXgEmwoL1/exec
-- 이 주소가 열리려면 Apps Script 프로젝트에 `apps-script/WebApp.gs`(doGet 함수)와
-  `apps-script/Index.html`이 들어 있어야 하고, **[배포 → 배포 관리 → 새 버전]** 으로
-  다시 배포해야 합니다. 주소를 열었을 때 "Script function not found: doGet" 오류가
-  보이면 그 배포에 WebApp.gs가 아직 없는 것입니다.
+- 이 주소가 열리려면 Apps Script 프로젝트에 `apps-script/WebApp.gs`(doGet 함수),
+  `apps-script/SheetData.gs`(시트 연결 함수), `apps-script/Index.html`이 들어 있어야 하고,
+  **[배포 → 배포 관리 → 새 버전]** 으로 다시 배포해야 합니다.
+- 세 파일이 들어가면 웹앱이 "CCPC 예산 앱" 구글 시트의 거래내역·예산안 입력값을
+  자동으로 불러오고, 앱에서 조정한 성격/조정률/일회성 금액을 시트에 저장할 수도 있습니다.
+- 처음 한 번은 Apps Script 편집기에서 `getSheetPayload` 함수를 실행해 스프레드시트
+  접근 권한을 승인해야 합니다.
+- 주소를 열었을 때 "Script function not found: doGet" 오류가 보이면 그 배포에
+  WebApp.gs가 아직 없는 것입니다.
 
 ## 시작하는 법
 

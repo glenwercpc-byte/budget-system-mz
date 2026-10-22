@@ -72,6 +72,11 @@
 
   <section class="card noprint">
     <h2>2. 지출 내역 불러오기</h2>
+    <div class="row" id="sheetBar" style="display:none;margin-bottom:10px">
+      <button id="sheetLoadBtn">구글 시트에서 불러오기</button>
+      <button class="sub" id="sheetSaveBtn">앱에서 조정한 내용을 시트에 저장</button>
+      <span id="sheetStatus" style="font-size:13px;color:var(--muted)"></span>
+    </div>
     <div class="row">
       <input type="file" id="fileInput" accept=".csv,text/csv,text/plain">
       <button class="sub" id="sampleBtn">예시 데이터로 체험하기</button>
@@ -157,9 +162,9 @@ function parseAmount(v){
 }
 
 /* ---------- 데이터 적재: 거래내역 -> (계정,항목) 집계 ---------- */
-function ingest(csvText){
+function ingest(csvText, silent){
   var data = parseCSV(csvText);
-  if(!data.length){ alert("읽을 수 있는 데이터가 없습니다."); return; }
+  if(!data.length){ if(!silent) alert("읽을 수 있는 데이터가 없습니다."); return; }
   var start = 0;
   var head = data[0].join(",").toLowerCase();
   if(head.indexOf("금액") >= 0 || head.indexOf("amount") >= 0 || head.indexOf("계정") >= 0) start = 1;
@@ -186,7 +191,7 @@ function ingest(csvText){
              once: (p.once != null && p.once !== "") ? p.once : (kind === "일회성" ? Math.round(a.actual*100)/100 : "") };
   });
   save(); render();
-  alert(state.rows.length + "개 항목으로 예산안 초안을 만들었습니다.");
+  if(!silent) alert(state.rows.length + "개 항목으로 예산안 초안을 만들었습니다.");
 }
 
 /* ---------- 계산 ---------- */
@@ -337,8 +342,55 @@ document.getElementById("applySettings").addEventListener("click", function(){
 document.getElementById("filterBox").addEventListener("input", render);
 document.getElementById("csvBtn").addEventListener("click", exportCSV);
 
+/* ---------- 구글 시트 연결 (Apps Script 웹앱으로 열렸을 때만 동작) ---------- */
+var inAppsScript = !!(window.google && google.script && google.script.run);
+function setSheetStatus(t){
+  var el = document.getElementById("sheetStatus");
+  if(el) el.textContent = t;
+}
+function loadFromSheet(){
+  if(!inAppsScript) return;
+  setSheetStatus("구글 시트에서 불러오는 중...");
+  google.script.run
+    .withSuccessHandler(function(p){
+      state.baseYear = p.config.baseYear;
+      state.budgetYear = p.config.budgetYear;
+      state.months = p.config.months;
+      ingest(p.csv, true);
+      state.rows.forEach(function(r){
+        var o = p.overrides[r.acct + "|" + r.cat];
+        if(o){ if(o.kind) r.kind = o.kind; r.rate = o.rate; r.once = o.once; }
+      });
+      save(); render();
+      setSheetStatus("시트와 연결됨 · 거래 " + p.count + "건을 불러왔습니다.");
+    })
+    .withFailureHandler(function(e){
+      setSheetStatus("시트 연결 실패: " + e.message + " — Apps Script 편집기에서 getSheetPayload 함수를 한 번 실행해 권한을 승인해 주세요.");
+    })
+    .getSheetPayload();
+}
+function saveToSheet(){
+  if(!inAppsScript || !state.rows.length) return;
+  setSheetStatus("시트에 저장 중...");
+  var rows = state.rows.map(function(r){
+    return {acct: r.acct, cat: r.cat, kind: r.kind, rate: r.rate, once: r.once};
+  });
+  google.script.run
+    .withSuccessHandler(function(res){
+      setSheetStatus(res.ok ? ("시트에 저장 완료 · " + res.changed + "개 항목 반영") : ("저장 실패: " + res.message));
+    })
+    .withFailureHandler(function(e){ setSheetStatus("저장 실패: " + e.message); })
+    .saveBudgetSettings(rows);
+}
+
 load();
 render();
+if(inAppsScript){
+  document.getElementById("sheetBar").style.display = "flex";
+  document.getElementById("sheetLoadBtn").addEventListener("click", loadFromSheet);
+  document.getElementById("sheetSaveBtn").addEventListener("click", saveToSheet);
+  loadFromSheet();
+}
 </script>
 </body>
 </html>
